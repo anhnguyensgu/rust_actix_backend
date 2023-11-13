@@ -40,7 +40,7 @@ impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         error!("{e:?}");
         match e {
-            Error::RowNotFound => AppError::NotFound,
+            sqlx::Error::RowNotFound => AppError::NotFound,
             _ => AppError::InternalError,
         }
     }

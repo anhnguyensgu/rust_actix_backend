@@ -3,7 +3,7 @@ pub mod handler {
     use crate::account;
     use crate::error::AppError;
 
-    use crate::jwt::util::generate_token;
+    use crate::jwt::util::JwtGenerator;
     use actix_web::web::{Data, Json};
     use actix_web::{post, Responder};
     use serde::{Deserialize, Serialize};
@@ -26,18 +26,20 @@ pub mod handler {
     pub async fn login(
         body: Json<LoginRequest>,
         pg_pool: Data<PgPool>,
+        generator: Data<JwtGenerator>,
     ) -> Result<impl Responder, AppError> {
         let LoginRequest { username, password } = body.into_inner();
         let user_id = persistence::login(&username, &password, &pg_pool).await?;
         let account = account::persistence::get_by_id(user_id, &pg_pool).await?;
-        let response =
-            generate_token(&account).map(|(access_token, refresh_token, expired_at)| {
-                LoginResponse {
-                    access_token,
-                    refresh_token,
-                    expired_at,
-                }
-            })?;
+        let response = generator.generate_token(&account).map(
+            |(access_token, refresh_token, expired_at)| LoginResponse {
+                access_token,
+                refresh_token,
+                expired_at,
+            },
+        )?;
+
+        generator.verify(&response.refresh_token);
 
         Ok(Json(response))
     }
