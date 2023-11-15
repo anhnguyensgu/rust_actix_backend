@@ -1,10 +1,14 @@
 pub mod util {
+    use std::ops::Add;
+
     use crate::account::persistence::Account;
     use crate::error::AppError;
+    use chrono::Utc;
     use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+    use rand::{distributions::Alphanumeric, thread_rng, Rng};
     use serde::{Deserialize, Serialize};
     use serde_json::json;
-    use tracing::info;
+    use tracing::error;
 
     pub enum JwtError {
         Failed,
@@ -17,19 +21,10 @@ pub mod util {
     }
 
     #[derive(Debug, Serialize, Deserialize)]
-    struct Claims {
-        // aud: String,
-        // // Optional. Audience
-        exp: usize,
-        // // Required (validate_exp defaults to true in validation). Expiration time (as UTC timestamp)
-        // iat: usize,
-        // // Optional. Issued at (as UTC timestamp)
-        // iss: String,
-        // // Optional. Issuer
-        // nbf: usize,
-        // Optional. Not Before (as UTC timestamp)
-        sub: i64,     // Optional. Subject (whom token refers to)
-        name: String, // Optional. Subject (whom token refers to)
+    pub struct Claims {
+        pub exp: usize,
+        pub sub: i64,     // Optional. Subject (whom token refers to)
+        pub name: String, // Optional. Subject (whom token refers to)
     }
 
     impl JwtGenerator {
@@ -42,18 +37,34 @@ pub mod util {
         }
 
         pub fn generate_token(&self, acc: &Account) -> Result<(String, String, i64), JwtError> {
+            let expired_at = Utc::now().add(chrono::Duration::days(7)).timestamp();
             let payload = json!({
                 "sub": acc.id,
                 "name": acc.first_name,
+                "exp": expired_at,
             });
             let header = Header::new(self.algo);
-            let token = encode(&header, &payload, &self.encode_key).unwrap();
-            Ok((token.clone(), token, 0))
+            let token = encode(&header, &payload, &self.encode_key).map_err(|e| {
+                error!("error encoding {e:?}");
+                JwtError::Failed
+            })?;
+
+            let session_id: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(16)
+                .map(char::from)
+                .collect();
+
+            let refresh_token = sha256::digest(format!("{}{session_id}", acc.id));
+
+            Ok((token, refresh_token, expired_at))
         }
 
-        pub fn verify(&self, token: &str) {
-            let token = decode::<Claims>(token, &self.decode_key, &Validation::default());
-            info!("{token:?}");
+        pub fn verify(
+            &self,
+            token: &str,
+        ) -> Result<jsonwebtoken::TokenData<Claims>, jsonwebtoken::errors::Error> {
+            decode::<Claims>(token, &self.decode_key, &Validation::default())
         }
     }
 

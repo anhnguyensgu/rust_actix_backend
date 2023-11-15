@@ -17,6 +17,9 @@ pub enum AppError {
 
     #[display(fmt = "Resource Not Found")]
     NotFound,
+
+    #[display(fmt = "Invalid token")]
+    Unauthorized,
 }
 
 impl error::ResponseError for AppError {
@@ -26,12 +29,13 @@ impl error::ResponseError for AppError {
             AppError::BadClientData => StatusCode::BAD_REQUEST,
             AppError::Timeout => StatusCode::GATEWAY_TIMEOUT,
             AppError::NotFound => StatusCode::NOT_FOUND,
+            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code())
-            .insert_header(ContentType::html())
+            .insert_header(ContentType::json())
             .body(self.to_string())
     }
 }
