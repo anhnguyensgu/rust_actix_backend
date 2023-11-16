@@ -73,7 +73,10 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         scope("/assessments")
                             .wrap(auth)
-                            .service(assessment::handler::get_by_user),
+                            .service(assessment::handler::get_all)
+                            .service(assessment::handler::get_one)
+                            .service(assessment::handler::create)
+                            .service(assessment::handler::update),
                     ),
             )
     })

@@ -133,13 +133,17 @@ pub mod persistence {
                 error!("get pool error {e:?}");
                 AppError::InternalError
             })?;
-            pool.set_ex(keys(refresh_token), user_id, 24 * 60 * 60 * 14)
+            pool.set_ex(keys(refresh_token), user_id, duration())
                 .await?;
             Ok(())
         }
 
         fn keys(refresh_token: &str) -> String {
             format!("refresh_token:{}", refresh_token)
+        }
+
+        fn duration() -> usize {
+            24 * 60 * 60 * 14
         }
     }
 }
